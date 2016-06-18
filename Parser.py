@@ -10,15 +10,14 @@ from __future__ import unicode_literals
 import requests
 import bs4 as BeautifulSoup
 import pandas as pd #LOL
-import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.ticker import NullFormatter
-nullfmt = NullFormatter()         # no labels
 import argparse
+import data_plots
 
 parser = argparse.ArgumentParser(description='A simple script to make some nice statistics with your corporico team')
 parser.add_argument('--company',required=True, help='url of your corporico will be <company>.corporico.fr')
 parser.add_argument('--cookie',required=True, help='cookie of your corporico session')
+parser.add_argument('--matchList',default=[],help='List of match you want to get insight info on')
+parser.add_argument('--load_csv',help='load csv file instead of parsing website')
 
 args = parser.parse_args()
 
@@ -31,9 +30,39 @@ matches = []
 teams= dict()
 scores= dict()
 
-def get_match_pronos(match_ids):
+def get_bets():
+    j=1
+    matchList = []
+    questionList=[]
+    while True:
+        payload = {'page':j,'scope':'past'}
+        r=requests.get('http://'+args.company+'.corporico.fr',cookies=cookies, params=payload)
+        print(r.url)
+        if r.url == 'http://' + args.company + '.corporico.fr/sessions/new':
+            print("cookie or company error")
+            exit()
+                 
+        soup = BeautifulSoup.BeautifulSoup(r.text, "lxml")
+        matchEntries = soup.findAll('div', attrs={'class': 'form-match'})
+        questionEntries = soup.findAll('div', attrs={'class':'question-item-container'})
+        if len(matchEntries) ==0:
+            break
+        for match in matchEntries:
+            matchURL = match.a['href']
+            matchList.append(int(matchURL[matchURL.rfind('/')+1:]))
+        for question in questionEntries:
+            questionURL = question.a['href']
+            questionList.append(int(questionURL[questionURL.rfind('/')+1:]))
+
+        j=j+1
+    print (matchList)
+    print(questionList)
+    return matchList, questionList
+
+def get_match_pronos(matchList):
     names = []
     teams = []
+    pseudos = []
     fscoresAlpha = []
     fscoresBeta = []
     pronosAlpha = []
@@ -41,7 +70,7 @@ def get_match_pronos(match_ids):
     countriesAlpha = []
     countriesBeta = []
     match_IDs = []
-    for k in match_ids:
+    for k in matchList:
         j=1
         while True:
             payload = {'page': j}
@@ -57,15 +86,16 @@ def get_match_pronos(match_ids):
                 countries = soup.findAll('div', attrs={'class': 'match-item-team-name'})
                 countries = [country.text.strip() for country in countries]
                 final_score = soup.findAll('div',attrs={'class': 'has-score'})
-                final_score = [int(score.text.strip()) for score in final_score]
+                final_score = ['None' if '_' in final_score else int(score.text.strip()) for score in final_score]
             
             
             entries = soup.findAll('div', attrs={'class': 'leaderboard-item'})
             if(len(entries) == 0):
                 break
             for soup in entries :
-                #print soup
-                nameAndTeam = soup.find('div', attrs={'class': 'leaderboard-item-cell-team'}).find_next('div', attrs={'class': 'leaderboard-item-label'}).text.strip()
+                identity = soup.find('div', attrs={'class': 'leaderboard-item-cell-team'})
+                pseudo = identity.find_next('div', attrs={'class':'leaderboard-item-value-name'}).text.strip()
+                nameAndTeam = identity.find_next('div', attrs={'class': 'leaderboard-item-label'}).text.strip()
                 name = nameAndTeam[:nameAndTeam.find('\n')]
                 if 'TEAM' in nameAndTeam:
                     team = nameAndTeam[nameAndTeam.find('TEAM ') + 5:]
@@ -78,6 +108,7 @@ def get_match_pronos(match_ids):
                 pronosBeta.append(prono[1])
                 teams.append(team)
                 names.append(name)
+                pseudos.append(pseudo)
                 fscoresAlpha.append(final_score[0])
                 fscoresBeta.append(final_score[1])
                 countriesAlpha.append(countries[0])
@@ -86,6 +117,7 @@ def get_match_pronos(match_ids):
                 
             j = j+1
     data = {'name':names,
+            'pseudo':pseudos,
             'team':teams,
             'fscoreAlpha':fscoresAlpha,
             'fscoreBeta':fscoresBeta,
@@ -95,72 +127,64 @@ def get_match_pronos(match_ids):
             'countryBeta':countriesBeta,
             'matchID':match_IDs
             }
+    matchDataset = pd.DataFrame(data)
+    return matchDataset
+
+
+
+def get_question_pronos(questionList):
+    pseudos = []
+    questions=[]
+    answers = []
+    question_IDs = []
+    for k in questionList:
+        j=1
+        while True:
+            payload = {'page': j}
+            r=requests.get('http://'+args.company+'.corporico.fr/questions/' + str(k),cookies=cookies, params=payload)
+            print(r.url)
+            if r.url == 'http://' + args.company + '.corporico.fr/sessions/new':
+                print("cookie or company error")
+                exit()
+                 
+            soup = BeautifulSoup.BeautifulSoup(r.text, "lxml")
+            
+            if j==1:
+                question = soup.find('div', attrs={'class': 'question-detail-title'})
+                question = question.text.strip()
+            
+            
+            entries = soup.findAll('div', attrs={'class': 'leaderboard-item'})
+            if(len(entries) == 0):
+                break
+            for soup in entries :
+                result= soup.findAll('div', attrs={'class': 'leaderboard-item-value'})
+                pseudo = result[0].text.strip()
+                answer = result[1].text.strip()
+                pseudos.append(pseudo)
+                answers.append(answer)
+                questions.append(question)
+                question_IDs.append(k)
+                
+            j = j+1
+    data = {'pseudo':pseudos,
+            'question':questions,
+            'answer':answers,
+            'questionID':question_IDs
+            }
     dataset = pd.DataFrame(data)
     return dataset
         
-#dataset = get_match_pronos([1,2,3,4,5,6,7,8,39,40,11,12])
-#dataset.to_csv('test.csv',encoding='utf-8', index=False)
-dataset = pd.read_csv('test.csv')
+if not args.load_csv:
+    matchList,questionList = get_bets()
+    questionDataset = get_question_pronos(questionList)
+    matchDataset = get_match_pronos(matchList)
+    matchDataset.to_csv('matches.csv',encoding='utf-8', index=False)
+    questionDataset.to_csv('questions.csv',encoding='utf-8',index=False)
+questionDataset = pd.read_csv('questions.csv')
+matchDataset = pd.read_csv('matches.csv')
+print(questionDataset)
+print(matchDataset)
 
-def plot_histograms():
-    for match in dataset['matchID'].unique() :
-        matchdata = dataset[dataset['matchID'] == match]
-        
-        countryAlpha = matchdata['countryAlpha'].iloc[0]
-        countryBeta = matchdata['countryBeta'].iloc[0]
-        
-        scoreAlpha = matchdata['fscoreAlpha'].iloc[0]
-        scoreBeta = matchdata['fscoreBeta'].iloc[0]
-        
-        
-        prono_x = matchdata['pronoAlpha']
-        prono_y = matchdata['pronoBeta']
-        
-        edges = [0,1,2,3,4,5,6]
-        hist2d = np.histogram2d(prono_x, prono_y,bins = (edges,edges))
-        
-        print(countryAlpha + ' vs ' + countryBeta)
-        print(str(scoreAlpha) + ' - ' + str(scoreBeta))
-        
-        # definitions for the axes
-        left, width = 0.1, 0.62
-        bottom, height = 0.1, 0.62
-        bottom_h = left_h = left + width + 0.02
-        
-        
-        rect_scatter = [left, bottom, width, height]
-        rect_histx = [left, bottom_h, width, 0.2]
-        rect_histy = [left_h, bottom, 0.2, height]
-        # start with a rectangular Figure
-        plt.figure(match,figsize=(5, 5))
-        axScatter = plt.axes(rect_scatter)
-        axHistx = plt.axes(rect_histx)
-        axHisty = plt.axes(rect_histy)
-        
-        # no labels
-        axHistx.xaxis.set_major_formatter(nullfmt)
-        axHisty.yaxis.set_major_formatter(nullfmt)
-        
-        # the scatter plot:
-        axScatter.imshow(np.transpose(hist2d[0]),interpolation = 'nearest')
-        
-        # now determine nice limits by hand:
-        binwidth = 1
-        lim = 5.5
-        
-        axScatter.set_xlim((-0.5, lim))
-        axScatter.set_ylim((-0.5, lim))
-        
-        bins = np.arange(-lim, lim + binwidth, binwidth)
-        axHistx.hist(prono_x, bins=bins)
-        axHisty.hist(prono_y, bins=bins, orientation='horizontal')
-        axHistx.set_xlim(axScatter.get_xlim())
-        axHisty.set_ylim(axScatter.get_ylim())
-        axHisty.set_xticks([125,250])
-        axHistx.set_yticks([125,250])
-        
-        axHistx.set_title(countryAlpha + ' - ' + str(scoreAlpha))
-        axHisty.set_title(countryBeta + '\n' + str(scoreBeta))
-    plt.show()
     
-plot_histograms()
+#data_plots.plot_histograms(dataset,matchList=args.matchList)
