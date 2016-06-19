@@ -1,6 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import operator
 from matplotlib.ticker import NullFormatter
+import advanced_stats
 nullfmt = NullFormatter()         # no labels
 
 def plot_histograms(dataset,matchList):
@@ -9,6 +11,8 @@ def plot_histograms(dataset,matchList):
         matchList = dataset['matchID'].unique()
     for match in matchList :
         print(match)
+        
+        prono_x,prono_y,hist2d = advanced_stats.get_bet_hist(match,dataset)
         matchdata = dataset[dataset['matchID'] == match]
         
         countryAlpha = matchdata['countryAlpha'].iloc[0]
@@ -18,13 +22,10 @@ def plot_histograms(dataset,matchList):
         scoreBeta = matchdata['fscoreBeta'].iloc[0]
         
         
-        prono_x = matchdata['pronoAlpha']
-        prono_y = matchdata['pronoBeta']
+        hist2d[hist2d==0] = -10
         
-        edges = [0,1,2,3,4,5,6]
-        hist2d = np.histogram2d(prono_x, prono_y,bins = (edges,edges))
-        
-        print(countryAlpha + ' vs ' + countryBeta)
+        matchTitle = countryAlpha + ' vs ' + countryBeta
+        print(matchTitle)
         print(str(scoreAlpha) + ' - ' + str(scoreBeta))
         
         # definitions for the axes
@@ -37,7 +38,7 @@ def plot_histograms(dataset,matchList):
         rect_histx = [left, bottom_h, width, 0.2]
         rect_histy = [left_h, bottom, 0.2, height]
         # start with a rectangular Figure
-        plt.figure(match,figsize=(5, 5))
+        plt.figure(matchTitle,figsize=(5, 5))
         axScatter = plt.axes(rect_scatter)
         axHistx = plt.axes(rect_histx)
         axHisty = plt.axes(rect_histy)
@@ -47,7 +48,7 @@ def plot_histograms(dataset,matchList):
         axHisty.yaxis.set_major_formatter(nullfmt)
         
         # the scatter plot:
-        axScatter.imshow(np.transpose(hist2d[0]),interpolation = 'nearest')
+        axScatter.imshow(np.transpose(hist2d),interpolation = 'nearest')
         
         # now determine nice limits by hand:
         binwidth = 1
@@ -66,5 +67,29 @@ def plot_histograms(dataset,matchList):
         
         axHistx.set_title(countryAlpha + ' - ' + str(scoreAlpha))
         axHisty.set_title(countryBeta + '\n' + str(scoreBeta))
-        print(hist2d[0])
+        print(hist2d)
+    plt.show()
+
+
+def plot_question_answers(dataset,questionList):
+    if not questionList:
+        questionList = dataset['questionID'].unique()
+    for question in questionList :
+        questionData = dataset[dataset['questionID'] == question]
+        questionText = questionData['question'].iloc[0]        
+        
+        answers = questionData['answer']
+        countries = answers.unique()
+        hist = dict((x, answers[answers == x].count()) for x in countries)
+        sorted_hist = sorted(hist.items(), key=operator.itemgetter(1), reverse = True)
+        sorted_hist_labels = [k[0] for k in sorted_hist]
+        sorted_hist_values = [k[1] for k in sorted_hist]
+        print(questionText)
+        print(hist)
+        fig,ax = plt.subplots()
+        ax.set_title(questionText)
+        ax.bar(np.arange(len(sorted_hist)),sorted_hist_values,1)
+        ax.set_xticks(np.arange(len(sorted_hist)) + 0.5)
+        ax.set_xticklabels(sorted_hist_labels,rotation=60 if len(countries)>4 else 0,ha ='center') 
+        plt.subplots_adjust(bottom=0.15)
     plt.show()
