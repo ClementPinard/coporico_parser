@@ -40,7 +40,6 @@ def request_page(payload,url):
     return r
 
 def get_bets():
-    j=1
     matchList = []
     fscoresAlpha = []
     fscoresBeta = []
@@ -48,39 +47,44 @@ def get_bets():
     countriesBeta = []
             
     questionList=[]
-    while True:
-        payload = {'page':j,'scope':'past'}
-        url = 'http://'+args.company+'.corporico.fr'
-        r=request_page(payload,url) 
-                 
-        soup = BeautifulSoup.BeautifulSoup(r.text, "lxml")
-        matchEntries = soup.findAll('div', attrs={'class': 'match-item-container'})
-        questionEntries = soup.findAll('div', attrs={'class':'question-item-container'})
-        if len(matchEntries) ==0:
-            break
-        for match in matchEntries:
-            matchURL = match.a['href']
-            matchID = int(matchURL[matchURL.rfind('/')+1:])
-            matchList.append(matchID)
-            countries = match.findAll('div', attrs={'class': 'match-item-team-name'})
-            countries = [country.text.strip() for country in countries]
-            countriesAlpha.append(countries[0])
-            countriesBeta.append(countries[1])
-            final_score = match.find('span',attrs={'class': 'form-match-cta-detail-alpha'}).text.strip()
-            #final_score = ['None' if '_' in final_score else int(score.text.strip()) for score in final_score]
-            if 'final' in final_score:
-                final_score = final_score[final_score.find(': ')+2:].split('-')
-                fscoresAlpha.append(final_score[0])
-                fscoresBeta.append(final_score[1])
-            else:
-                fscoreAlpha.append('None')
-                fscoreBeta.append('None')
+    scopes = ['futur','past']
+    for scope in scopes:
+        j=1
+        while True:
+            payload = {'page':j,'scope':scope}
+            url = 'http://'+args.company+'.corporico.fr/bets'
+            r=request_page(payload,url) 
+                     
+            soup = BeautifulSoup.BeautifulSoup(r.text, "lxml")
+            matchEntries = soup.findAll('div', attrs={'class': 'match-item-container'})
+            questionEntries = soup.findAll('div', attrs={'class':'question-item-container'})
+            if len(matchEntries) ==0:
+                break
+            for match in matchEntries:
+                if(match.find('form')):
+                    break
+                matchURL = match.a['href']
+                matchID = int(matchURL[matchURL.rfind('/')+1:])
+                matchList.append(matchID)
+                countries = match.findAll('div', attrs={'class': 'match-item-team-name'})
+                countries = [country.text.strip() for country in countries]
+                countriesAlpha.append(countries[0])
+                countriesBeta.append(countries[1])
+                final_score = match.find('span',attrs={'class': 'form-match-cta-detail-alpha'}).text.strip()
+                #final_score = ['None' if '_' in final_score else int(score.text.strip()) for score in final_score]
+                if 'final' in final_score:
+                    final_score = final_score[final_score.find(': ')+2:].split('-')
+                    fscoresAlpha.append(int(final_score[0]))
+                    fscoresBeta.append(int(final_score[1]))
+                else:
+                    fscoresAlpha.append('None')
+                    fscoresBeta.append('None')
 
-        for question in questionEntries:
-            questionURL = question.a['href']
-            questionList.append(int(questionURL[questionURL.rfind('/')+1:]))
+            for question in questionEntries:
+                questionURL = question.a['href']
+                questionList.append(int(questionURL[questionURL.rfind('/')+1:]))
 
-        j=j+1
+            j=j+1
     data = {'matchID':matchList,
             'fscoreAlpha':fscoresAlpha,
             'fscoreBeta':fscoresBeta,
@@ -195,7 +199,6 @@ def get_question_pronos(questionList):
         
 if not args.load_csv:
     matchDataset,questionList = get_bets()
-    print(matchDataset)
     questionDataset = get_question_pronos(questionList)
     betDataset, userDataset = get_match_bets(matchDataset)
     betDataset.to_csv('bets.csv',encoding='utf-8', index=False)
@@ -209,8 +212,19 @@ matchDataset = pd.read_csv('matches.csv'),
 betDataset = pd.read_csv('bets.csv'))
 
 
-advanced_stats.compute_standard_points(dataset)
-advanced_stats.compute_normalized_points(dataset)
+userIDs = dataset['userDataset']['userID']
+names = dataset['userDataset']['name']
+standard = advanced_stats.compute_standard_points(dataset)
+normalized = advanced_stats.compute_normalized_points(dataset)
+
+scoreDataset = pd.DataFrame({'name':names,
+                             'userID':userIDs,
+                             'standardScore':standard,
+                             'normalizedScore':normalized})
+scoreDataset.to_csv('scores.csv',encoding='utf-8',index=False)
+
+
+
 
 #data_plots.plot_question_answers(questionDataset,False)  
-#data_plots.plot_histograms(matchDataset,matchList=args.matchList)
+#data_plots.plot_histograms(dataset,matchList=args.matchList)

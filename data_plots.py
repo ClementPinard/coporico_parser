@@ -6,28 +6,27 @@ import advanced_stats
 nullfmt = NullFormatter()         # no labels
 
 def plot_histograms(dataset,matchList):
+    matchDataset = dataset['matchDataset']
+    betDataset = dataset['betDataset']
     print(matchList)
     if not matchList:
-        matchList = dataset['matchID'].unique()
+        matchList = matchDataset['matchID'].unique()
     for match in matchList :
         print(match)
         
-        prono_x,prono_y,hist2d = advanced_stats.get_bet_hist(match,dataset)
-        matchdata = dataset[dataset['matchID'] == match]
+        prono_x,prono_y,hist2d = advanced_stats.get_bet_hist(match,betDataset)
+        matchdata = matchDataset[matchDataset['matchID'] == match]
         
         countryAlpha = matchdata['countryAlpha'].iloc[0]
         countryBeta = matchdata['countryBeta'].iloc[0]
         
         scoreAlpha = matchdata['fscoreAlpha'].iloc[0]
         scoreBeta = matchdata['fscoreBeta'].iloc[0]
-        
-        
-        hist2d[hist2d==0] = -10
-        
+                
         matchTitle = countryAlpha + ' vs ' + countryBeta
         print(matchTitle)
         print(str(scoreAlpha) + ' - ' + str(scoreBeta))
-        
+        print(hist2d)
         # definitions for the axes
         left, width = 0.1, 0.62
         bottom, height = 0.1, 0.62
@@ -47,6 +46,7 @@ def plot_histograms(dataset,matchList):
         axHistx.xaxis.set_major_formatter(nullfmt)
         axHisty.yaxis.set_major_formatter(nullfmt)
         
+        hist2d[hist2d==0] = -10
         # the scatter plot:
         axScatter.imshow(np.transpose(hist2d),interpolation = 'nearest')
         
@@ -67,7 +67,6 @@ def plot_histograms(dataset,matchList):
         
         axHistx.set_title(countryAlpha + ' - ' + str(scoreAlpha))
         axHisty.set_title(countryBeta + '\n' + str(scoreBeta))
-        print(hist2d)
     plt.show()
 
 
