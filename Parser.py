@@ -159,9 +159,15 @@ def get_match_bets(matchList):
 
 def get_question_pronos(questionList):
     pseudos = []
+    userIDs = []
     questions=[]
     answers = []
+    questionBets = []
     question_IDs = []
+    
+    qList_IDs = []
+    qList_question = []
+    qList_answer = []
     for k in questionList:
         j=1
         while True:
@@ -174,6 +180,13 @@ def get_question_pronos(questionList):
             if j==1:
                 question = soup.find('div', attrs={'class': 'question-detail-title'})
                 question = question.text.strip()
+                answer = soup.find('div', attrs={'class': 'question-detail-answer'})
+                if answer :
+                    answer = answer.text.strip()
+                    print(answer)
+                qList_IDs.append(k)
+                qList_question.append(question)
+                qList_answer.append(answer)
             
             
             entries = soup.findAll('div', attrs={'class': 'leaderboard-item'})
@@ -182,49 +195,75 @@ def get_question_pronos(questionList):
             for soup in entries :
                 result= soup.findAll('div', attrs={'class': 'leaderboard-item-value'})
                 pseudo = result[0].text.strip()
-                answer = result[1].text.strip()
+                userID = result[0].a['href'].strip()
+                userID = userID[userID.rfind('/')+1:]
+                questionBet = result[1].text.strip()
                 pseudos.append(pseudo)
+                userIDs.append(userID)
+                questionBets.append(questionBet)
                 answers.append(answer)
                 questions.append(question)
                 question_IDs.append(k)
                 
             j = j+1
-    data = {'pseudo':pseudos,
+    data_bets = {'pseudo':pseudos,
             'question':questions,
             'answer':answers,
-            'questionID':question_IDs
+            'questionBet':questionBets,
+            'questionID':question_IDs,
+            'userID':userIDs
             }
-    dataset = pd.DataFrame(data)
-    return dataset
+    data_questions = {'questionID':qList_IDs,
+                      'question':qList_question,
+                      'answer':qList_answer}
+    
+    bets_dataset = pd.DataFrame(data_bets)
+    questions_dataset = pd.DataFrame(data_questions)
+    return bets_dataset, questions_dataset
         
 if not args.load_csv:
     matchDataset,questionList = get_bets()
-    questionDataset = get_question_pronos(questionList)
+    questionBetsDataset , questionDataset = get_question_pronos(questionList)
     betDataset, userDataset = get_match_bets(matchDataset)
     betDataset.to_csv('bets.csv',encoding='utf-8', index=False)
     matchDataset.to_csv('matches.csv',encoding='utf-8', index=False)
+    questionBetsDataset.to_csv('questions_bets.csv',encoding='utf-8',index=False)
     questionDataset.to_csv('questions.csv',encoding='utf-8',index=False)
     userDataset.to_csv('users.csv',encoding='utf-8',index=False)
 
 dataset = dict(userDataset = pd.read_csv('users.csv'),
 questionDataset = pd.read_csv('questions.csv'),
 matchDataset = pd.read_csv('matches.csv'),
+questionBetsDataset = pd.read_csv('questions_bets.csv'),
 betDataset = pd.read_csv('bets.csv'))
 
+if not args.load_csv:
+    odds = advanced_stats.compute_odds(dataset)
+    s1 = pd.Series(odds[0], name='odds_score')
+    s2 = pd.Series(odds[1], name='odds_winner')
+    s3 = pd.Series(odds[2], name='odds_question')
+    
+    r1 = pd.concat([dataset['matchDataset'], s1,s2], axis=1)
+    r2 = pd.concat([dataset['questionDataset'],s3], axis=1)
+    
+    r1.to_csv('matches.csv',encoding='utf-8', index=False)
+    r2.to_csv('questions.csv',encoding='utf-8',index=False)
+    
+    dataset['matchDataset'] = pd.read_csv('matches.csv')
+    dataset['questionDataset'] = pd.read_csv('questions.csv')
+    
+    standard = advanced_stats.compute_standard_points(dataset)
+    normalized = advanced_stats.compute_normalized_points(dataset)
+    
+    s1 = pd.Series(standard, name='standardScore')
+    s2 = pd.Series(normalized, name='normalizedScore')
+    
+    r1 = pd.concat([dataset['userDataset'],s1,s2], axis=1)
+    r1.to_csv('users.csv',encoding='utf-8', index=False)
+    dataset['userDataset'] = pd.read_csv('scores.csv')
 
-userIDs = dataset['userDataset']['userID']
-names = dataset['userDataset']['name']
-standard = advanced_stats.compute_standard_points(dataset)
-normalized = advanced_stats.compute_normalized_points(dataset)
-
-scoreDataset = pd.DataFrame({'name':names,
-                             'userID':userIDs,
-                             'standardScore':standard,
-                             'normalizedScore':normalized})
-scoreDataset.to_csv('scores.csv',encoding='utf-8',index=False)
 
 
 
-
-#data_plots.plot_question_answers(questionDataset,False)  
-#data_plots.plot_histograms(dataset,matchList=args.matchList)
+data_plots.plot_question_answers(dataset)  
+data_plots.plot_histograms(dataset)

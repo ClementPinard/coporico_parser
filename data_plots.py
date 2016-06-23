@@ -5,12 +5,10 @@ from matplotlib.ticker import NullFormatter
 import advanced_stats
 nullfmt = NullFormatter()         # no labels
 
-def plot_histograms(dataset,matchList):
+def plot_histograms(dataset):
     matchDataset = dataset['matchDataset']
     betDataset = dataset['betDataset']
-    print(matchList)
-    if not matchList:
-        matchList = matchDataset['matchID'].unique()
+    matchList = matchDataset['matchID'].unique()
     for match in matchList :
         print(match)
         
@@ -70,23 +68,25 @@ def plot_histograms(dataset,matchList):
     plt.show()
 
 
-def plot_question_answers(dataset,questionList):
-    if not questionList:
-        questionList = dataset['questionID'].unique()
+def plot_question_answers(dataset):
+    questionBets = dataset['questionBetsDataset']
+    questionList = questionBets['questionID'].unique()
     for question in questionList :
-        questionData = dataset[dataset['questionID'] == question]
+        questionData = questionBets[questionBets['questionID'] == question]
         questionText = questionData['question'].iloc[0]        
         
-        answers = questionData['answer']
-        countries = answers.unique()
-        hist = dict((x, answers[answers == x].count()) for x in countries)
+        answer = questionData['answer'].iloc[0]
+        bets = questionData['questionBet']
+        countries = bets.unique()
+        hist = dict((x, bets[bets == x].count()) for x in countries)
         sorted_hist = sorted(hist.items(), key=operator.itemgetter(1), reverse = True)
         sorted_hist_labels = [k[0] for k in sorted_hist]
         sorted_hist_values = [k[1] for k in sorted_hist]
         print(questionText)
+        print(answer)
         print(hist)
         fig,ax = plt.subplots()
-        ax.set_title(questionText)
+        ax.set_title(questionText + (' : ' + answer if type(answer) is str else ''))
         ax.bar(np.arange(len(sorted_hist)),sorted_hist_values,1)
         ax.set_xticks(np.arange(len(sorted_hist)) + 0.5)
         ax.set_xticklabels(sorted_hist_labels,rotation=60 if len(countries)>4 else 0,ha ='center') 
