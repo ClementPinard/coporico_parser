@@ -98,15 +98,75 @@ def compute_normalized_points(dataset):
 	betData = dataset['betDataset']
 	userData = dataset['userDataset']
 	matchData = dataset['matchDataset']
+	questionBetsData = dataset['questionBetsDataset']
+	questionData = dataset['questionDataset']
 	normalized_scores = []
 	for _,user in userData.iterrows():
 		bets = betData[betData['userID'] == user['userID']]
+		questionBets = questionBetsData[questionBetsData['userID'] == user['userID']]
 		score = 0
 		for _,k in bets.iterrows():
 			match = matchData[matchData['matchID'] == k['matchID']]
-			odds_score = match['odds_score'].values[0]
-			odds_winner = match['odds_winner'].values[0]
+			odds_score = match['odds_score'].iloc[0]
+			odds_winner = match['odds_winner'].iloc[0]
 			score = score + (3/odds_winner if guessed_winner(k,dataset) else 0) + (2/odds_score if guessed_score(k,dataset) else 0) - 5
+
+		for _,j in questionBets.iterrows():
+			question = questionData[questionData['questionID'] == j['questionID']]
+			if type(j['answer']) is str and question['odds_question'].iloc[0] > 0:
+				if j['answer'] == j['questionBet']:
+					odds = question['odds_question'].iloc[0]
+					value = 14 if j['questionID'] == 1 else 7
+					score = score + value/odds
+				score = score - value
 
 		normalized_scores.append(score)
 	return normalized_scores
+
+def get_user_summary(dataset,userID):
+	betData = dataset['betDataset']
+	questionBetsDataset = dataset['questionBetsDataset']
+	userData = dataset['userDataset']
+	matchData = dataset['matchDataset']
+	questionData = dataset['questionDataset']
+
+	bets = betData[betData['userID'] == userID]
+	questionBets = questionBetsDataset[questionBetsDataset['userID'] == userID]
+	username = userData[userData['userID'] == userID]['name'].iloc[0]
+
+
+	print('Questions : \n')
+	for _,k in questionBets.iterrows():
+		question = questionData[questionData['questionID'] == k['questionID']]
+		odds = question['odds_question'].iloc[0]
+		rate = 1/odds if odds>0 else 0
+		print(k['question'],' : ',(k['answer'] if type(k['answer']) is str else ''),' , cote à ',rate,'\n')
+		print(username,' a parié ',k['questionBet'])
+		guessed = k['answer'] == k['questionBet']
+		if not type(k['answer']) is str:
+			value = 0
+		else:
+			value = 14 if k['questionID'] == 1 else 7
+		print((value if guessed else 0 ),' points classiques')
+
+		print((value*rate if guessed else 0) - value, 'points ajustés à la cote')
+
+	print('Match Pronostics: \n')
+	for _,j in bets.iterrows():
+		match = matchData[matchData['matchID'] == j['matchID']]
+		odds_score = match['odds_score'].iloc[0]
+		odds_winner = match['odds_winner'].iloc[0]
+		rate_winner = 1/odds_winner if odds_winner>0 else 0
+		rate_score = 1/odds_score if odds_score>0 else 0
+		print(match['countryAlpha'].iloc [0],' vs ',match['countryBeta'].iloc [0], 'score : ',
+			    match['fscoreAlpha'].iloc[0], ' - ', match['fscoreBeta'].iloc[0],' , cote à ',
+			    rate_winner, ' (winner)', rate_score,' (score)\n')
+		print(username,' a parié ',j['pronoAlpha'], ' -',j['pronoBeta'])
+	
+		value_score = 2
+		value_winner = 3
+		guessedW = guessed_winner(j,dataset)
+		guessedS = guessed_score(j,dataset)
+		print((value_score if guessedS else 0 ) + (value_winner if guessedW else 0 ) ,' points classiques')
+
+		print((value_score*rate_score if guessedS else 0) + (value_winner*rate_winner if guessedW else 0)- value_score - value_winner, 'points ajustés à la cote\n')

@@ -5,8 +5,6 @@ usage : python --company <string> --cookie <string>
 '''
 
 
-
-from __future__ import unicode_literals
 import requests
 import bs4 as BeautifulSoup
 import pandas as pd #LOL
@@ -14,27 +12,13 @@ import argparse
 import data_plots
 import advanced_stats
 
-parser = argparse.ArgumentParser(description='A simple script to make some nice statistics with your corporico team')
-parser.add_argument('--company',required=True, help='url of your corporico will be <company>.corporico.fr')
-parser.add_argument('--cookie',required=True, help='cookie of your corporico session')
-parser.add_argument('--matchList',default=[],help='List of match you want to get insight info on')
-parser.add_argument('--load_csv',help='load csv file instead of parsing website')
-
-args = parser.parse_args()
 
 
-
-cookies = dict(_korpobet_session=args.cookie)
-
-pronos = dict()
-matches = []
-teams= dict()
-scores= dict()
 
 def request_page(payload,url):
     r = requests.get(url,cookies=cookies, params=payload)
     print(r.url)
-    if r.url == 'http://' + args.company + '.corporico.fr/sessions/new':
+    if 'new' in r.url:
         print("cookie or company error")
         exit()
     return r
@@ -52,7 +36,7 @@ def get_bets():
         j=1
         while True:
             payload = {'page':j,'scope':scope}
-            url = 'http://'+args.company+'.corporico.fr/bets'
+            url = 'https://'+ company +'.corporico.fr/bets'
             r=request_page(payload,url) 
                      
             soup = BeautifulSoup.BeautifulSoup(r.text, "lxml")
@@ -108,7 +92,7 @@ def get_match_bets(matchList):
         j=1
         while True:
             payload = {'page':j}
-            url = 'http://'+args.company+'.corporico.fr/matches/' + str(k)
+            url = 'https://'+ company +'.corporico.fr/matches/' + str(k)
             r=request_page(payload,url)
                  
             soup = BeautifulSoup.BeautifulSoup(r.text, "lxml")
@@ -172,7 +156,7 @@ def get_question_pronos(questionList):
         j=1
         while True:
             payload = {'page': j}
-            url = 'http://'+args.company+'.corporico.fr/questions/' + str(k)
+            url = 'https://'+ company +'.corporico.fr/questions/' + str(k)
             r=request_page(payload,url)
             
             soup = BeautifulSoup.BeautifulSoup(r.text, "lxml")
@@ -220,50 +204,68 @@ def get_question_pronos(questionList):
     bets_dataset = pd.DataFrame(data_bets)
     questions_dataset = pd.DataFrame(data_questions)
     return bets_dataset, questions_dataset
+
+
+def compute_csv(cookie,company_,load_csv):
+
+    global cookies
+    cookies = dict(_korpobet_session=cookie)
+    global company
+    company = company_
+    if not load_csv:
+        matchDataset,questionList = get_bets()
+        questionBetsDataset , questionDataset = get_question_pronos(questionList)
+        betDataset, userDataset = get_match_bets(matchDataset)
+        betDataset.to_csv('bets.csv',encoding='utf-8', index=False)
+        matchDataset.to_csv('matches.csv',encoding='utf-8', index=False)
+        questionBetsDataset.to_csv('questions_bets.csv',encoding='utf-8',index=False)
+        questionDataset.to_csv('questions.csv',encoding='utf-8',index=False)
+        userDataset.to_csv('users.csv',encoding='utf-8',index=False)
+
+    dataset = dict(userDataset = pd.read_csv('users.csv'),
+    questionDataset = pd.read_csv('questions.csv'),
+    matchDataset = pd.read_csv('matches.csv'),
+    questionBetsDataset = pd.read_csv('questions_bets.csv'),
+    betDataset = pd.read_csv('bets.csv'))
+
+    if not load_csv:
+        odds = advanced_stats.compute_odds(dataset)
+        s1 = pd.Series(odds[0], name='odds_score')
+        s2 = pd.Series(odds[1], name='odds_winner')
+        s3 = pd.Series(odds[2], name='odds_question')
         
-if not args.load_csv:
-    matchDataset,questionList = get_bets()
-    questionBetsDataset , questionDataset = get_question_pronos(questionList)
-    betDataset, userDataset = get_match_bets(matchDataset)
-    betDataset.to_csv('bets.csv',encoding='utf-8', index=False)
-    matchDataset.to_csv('matches.csv',encoding='utf-8', index=False)
-    questionBetsDataset.to_csv('questions_bets.csv',encoding='utf-8',index=False)
-    questionDataset.to_csv('questions.csv',encoding='utf-8',index=False)
-    userDataset.to_csv('users.csv',encoding='utf-8',index=False)
+        r1 = pd.concat([dataset['matchDataset'], s1,s2], axis=1)
+        r2 = pd.concat([dataset['questionDataset'],s3], axis=1)
+        
+        r1.to_csv('matches.csv',encoding='utf-8', index=False)
+        r2.to_csv('questions.csv',encoding='utf-8',index=False)
+        
+        dataset['matchDataset'] = pd.read_csv('matches.csv')
+        dataset['questionDataset'] = pd.read_csv('questions.csv')
+        
+        standard = advanced_stats.compute_standard_points(dataset)
+        normalized = advanced_stats.compute_normalized_points(dataset)
+        
+        s1 = pd.Series(standard, name='standardScore')
+        s2 = pd.Series(normalized, name='normalizedScore')
+        
+        r1 = pd.concat([dataset['userDataset'],s1,s2], axis=1)
+        r1.to_csv('users.csv',encoding='utf-8', index=False)
 
-dataset = dict(userDataset = pd.read_csv('users.csv'),
-questionDataset = pd.read_csv('questions.csv'),
-matchDataset = pd.read_csv('matches.csv'),
-questionBetsDataset = pd.read_csv('questions_bets.csv'),
-betDataset = pd.read_csv('bets.csv'))
+        dataset['userDataset'] = pd.read_csv('users.csv')
 
-if not args.load_csv:
-    odds = advanced_stats.compute_odds(dataset)
-    s1 = pd.Series(odds[0], name='odds_score')
-    s2 = pd.Series(odds[1], name='odds_winner')
-    s3 = pd.Series(odds[2], name='odds_question')
-    
-    r1 = pd.concat([dataset['matchDataset'], s1,s2], axis=1)
-    r2 = pd.concat([dataset['questionDataset'],s3], axis=1)
-    
-    r1.to_csv('matches.csv',encoding='utf-8', index=False)
-    r2.to_csv('questions.csv',encoding='utf-8',index=False)
-    
-    dataset['matchDataset'] = pd.read_csv('matches.csv')
-    dataset['questionDataset'] = pd.read_csv('questions.csv')
-    
-    standard = advanced_stats.compute_standard_points(dataset)
-    normalized = advanced_stats.compute_normalized_points(dataset)
-    
-    s1 = pd.Series(standard, name='standardScore')
-    s2 = pd.Series(normalized, name='normalizedScore')
-    
-    r1 = pd.concat([dataset['userDataset'],s1,s2], axis=1)
-    r1.to_csv('users.csv',encoding='utf-8', index=False)
-    dataset['userDataset'] = pd.read_csv('scores.csv')
+    return dataset
 
+if __name__ == '__main__':
 
+    parser = argparse.ArgumentParser(description='A simple script to make some nice statistics with your corporico team')
+    parser.add_argument('--company',required=True, help='url of your corporico will be <company>.corporico.fr')
+    parser.add_argument('--cookie',required=True, help='cookie of your corporico session')
+    parser.add_argument('--load_csv',help='load csv file instead of parsing website')
 
+    args = parser.parse_args()
+    dataset = compute_csv(args.cookie,args.company,args.load_csv)
 
-data_plots.plot_question_answers(dataset)  
-data_plots.plot_histograms(dataset)
+    data_plots.plot_question_answers(dataset)  
+    data_plots.plot_histograms(dataset)
+
