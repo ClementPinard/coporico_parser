@@ -32,8 +32,6 @@ def odds_question(question,dataset):
 	numGoodBets = len(questionBets[questionBets['questionBet'] == answer])
 	
 	return numGoodBets/numBets
-	
-
 
 def guessed_winner(bet,dataset):
 	matchData = dataset['matchDataset']
@@ -51,6 +49,17 @@ def guessed_score(bet,dataset):
 		return 0
 	return match['fscoreAlpha'].iloc[0] == bet['pronoAlpha'] and match['fscoreBeta'].iloc[0] == bet['pronoBeta']
 
+def bet_distance(bet,dataset):
+	matchData = dataset['matchDataset']
+	matchID = bet['matchID']
+	match = matchData[matchData['matchID'] == matchID]
+	if match['fscoreAlpha'].iloc[0] == 'None':
+		return 0
+	return np.sqrt(np.pow(match['fscoreAlpha'].iloc[0]-bet['pronoAlpha'],2) + np.pow(match['fscoreBeta'].iloc[0]-bet['pronoBeta'],2))
+
+
+
+
 def get_bet_hist(match, dataset):
 	matchdata = dataset[dataset['matchID'] == match]
 	
@@ -59,6 +68,9 @@ def get_bet_hist(match, dataset):
 	edges = [0,1,2,3,4,5,6]
 	hist2d = np.histogram2d(prono_x, prono_y,bins = (edges,edges))
 	return prono_x, prono_y, hist2d[0]
+
+def get_scores_hists(dataset):
+	return histStandard,histNormalized,histDistances
 
 def compute_odds(dataset):
 	matchData = dataset['matchDataset']
@@ -85,7 +97,11 @@ def compute_standard_points(dataset):
 		questionBets = questionBetsData[questionBetsData['userID'] == user['userID']]
 		score = 0
 		for _,k in bets.iterrows():
-			score = score + (3 if guessed_winner(k,dataset) else 0) + (2 if guessed_score(k,dataset) else 0)
+			if k['matchID'] >= 46:
+				values = [4,2]
+			else:
+				values = [3,2]
+			score = score + (values[0] if guessed_winner(k,dataset) else 0) + (values[1] if guessed_score(k,dataset) else 0)
 		for _,j in questionBets.iterrows():
 			if j['answer'] == j['questionBet']:
 				score = score + (14 if j['questionID'] == 1 else 7)
@@ -109,7 +125,11 @@ def compute_normalized_points(dataset):
 			match = matchData[matchData['matchID'] == k['matchID']]
 			odds_score = match['odds_score'].iloc[0]
 			odds_winner = match['odds_winner'].iloc[0]
-			score = score + (3/odds_winner if guessed_winner(k,dataset) else 0) + (2/odds_score if guessed_score(k,dataset) else 0) - 5
+			if k['matchID'] >= 46:
+				values = [4,2]
+			else:
+				values = [3,2]
+			score = score + (values[0]/odds_winner if guessed_winner(k,dataset) else 0) + (values[1]/odds_score if guessed_score(k,dataset) else 0) - 5
 
 		for _,j in questionBets.iterrows():
 			question = questionData[questionData['questionID'] == j['questionID']]
@@ -122,6 +142,29 @@ def compute_normalized_points(dataset):
 
 		normalized_scores.append(score)
 	return normalized_scores
+
+def compute_bet_distances(dataset):
+	betData = dataset['betDataset']
+	userData = dataset['userDataset']
+	matchData = dataset['matchDataset']
+	distances = []
+	for _,user in userData.iterrows():
+		bets = betData[betData['userID'] == user['userID']]
+		distance = 0
+		for _,k in bets.iterrows():
+			distance = distance + bet_distance(k,dataset)
+		normalized_scores.append(score)
+	return normalized_scores
+
+def compute_unlucky_indeces(users):
+	if (not 'standard' in users.index) or ('distance' not in users.index):
+		print('must first compute distances and standard scores')
+		return
+	indeces = []
+	for _,user in users.iterrows():
+		indeces.append(1000/(user['standardScore']*user['distanceScore']))
+	return indeces
+	
 
 def get_user_summary(dataset,userID):
 	betData = dataset['betDataset']

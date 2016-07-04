@@ -206,7 +206,7 @@ def get_question_pronos(questionList):
     return bets_dataset, questions_dataset
 
 
-def compute_csv(cookie,company_,load_csv):
+def compute_csv(cookie,company_,load_csv,compute_stats):
 
     global cookies
     cookies = dict(_korpobet_session=cookie)
@@ -228,7 +228,7 @@ def compute_csv(cookie,company_,load_csv):
     questionBetsDataset = pd.read_csv('questions_bets.csv'),
     betDataset = pd.read_csv('bets.csv'))
 
-    if not load_csv:
+    if compute_stats:
         odds = advanced_stats.compute_odds(dataset)
         s1 = pd.Series(odds[0], name='odds_score')
         s2 = pd.Series(odds[1], name='odds_winner')
@@ -245,12 +245,19 @@ def compute_csv(cookie,company_,load_csv):
         
         standard = advanced_stats.compute_standard_points(dataset)
         normalized = advanced_stats.compute_normalized_points(dataset)
+        distances = advanced_stats.compute_bet_distances(dataset)
         
         s1 = pd.Series(standard, name='standardScore')
         s2 = pd.Series(normalized, name='normalizedScore')
+        s3 = pd.Series(distances,name='distanceScore')
         
-        r1 = pd.concat([dataset['userDataset'],s1,s2], axis=1)
-        r1.to_csv('users.csv',encoding='utf-8', index=False)
+        r1 = pd.concat([dataset['userDataset'],s1,s2,s3], axis=1)
+        unlucky = advanced_stats.compute_unlucky_indeces(r1)
+        if unlucky:
+            r2 = pd.concat([r1,unlucky], axis=1)
+            r2.to_csv('users.csv',encoding='utf-8', index=False)
+        else:
+            r1.to_csv('users.csv',encoding='utf-8', index=False)
 
         dataset['userDataset'] = pd.read_csv('users.csv')
 
@@ -262,9 +269,10 @@ if __name__ == '__main__':
     parser.add_argument('--company',required=True, help='url of your corporico will be <company>.corporico.fr')
     parser.add_argument('--cookie',required=True, help='cookie of your corporico session')
     parser.add_argument('--load_csv',help='load csv file instead of parsing website')
+    parser.add_argument('--compute_stats',help='compute scores and bets statistics')
 
     args = parser.parse_args()
-    dataset = compute_csv(args.cookie,args.company,args.load_csv)
+    dataset = compute_csv(args.cookie,args.company,args.load_csv,args.compute_stats)
 
     data_plots.plot_question_answers(dataset)  
     data_plots.plot_histograms(dataset)
