@@ -2,18 +2,22 @@ import numpy as np
 import pandas as pd
 
 def odds_score(match,dataset):
+	if match['fscoreAlpha'] == 'None' or match['fscoreBeta'] == 'None' :
+		return 0
 	matchID = match['matchID']
 	_,bets,hist = get_bet_hist(matchID,dataset['betDataset'])
 	numBets = len(bets)
-	return (hist[match['fscoreAlpha'],match['fscoreBeta']])/numBets
+	return (hist[int(match['fscoreAlpha']),int(match['fscoreBeta'])])/numBets
 
 
 def odds_winner(match,dataset):
+	if match['fscoreAlpha'] == 'None' or match['fscoreBeta'] == 'None' :
+		return 0
 	matchID = match['matchID']
 	_,bets,hist = get_bet_hist(matchID,dataset['betDataset'])
 	numBets = len(bets)
 	numSameBets = 0
-	sign = np.sign(match['fscoreAlpha'] - match['fscoreBeta'])
+	sign = np.sign(int(match['fscoreAlpha']) - int(match['fscoreBeta']))
 	if sign == 0:
 		for i in range(6):
 			numSameBets = numSameBets + hist[i,i]
@@ -39,7 +43,7 @@ def guessed_winner(bet,dataset):
 	match = matchData[matchData['matchID'] == matchID]
 	if match['fscoreAlpha'].iloc[0] == 'None':
 		return 0
-	return np.sign((match['fscoreAlpha'] - match['fscoreBeta']).iloc[0]) == np.sign((bet['pronoAlpha'] - bet['pronoBeta']))
+	return np.sign(int(match['fscoreAlpha'].iloc[0]) - int(match['fscoreBeta'].iloc[0])) == np.sign((bet['pronoAlpha'] - bet['pronoBeta']))
 
 def guessed_score(bet,dataset):
 	matchData = dataset['matchDataset']
@@ -55,7 +59,7 @@ def bet_distance(bet,dataset):
 	match = matchData[matchData['matchID'] == matchID]
 	if match['fscoreAlpha'].iloc[0] == 'None':
 		return 0
-	return np.sqrt(np.pow(match['fscoreAlpha'].iloc[0]-bet['pronoAlpha'],2) + np.pow(match['fscoreBeta'].iloc[0]-bet['pronoBeta'],2))
+	return np.sqrt(np.power(int(match['fscoreAlpha'].iloc[0])-bet['pronoAlpha'],2) + np.power(int(match['fscoreBeta'].iloc[0])-bet['pronoBeta'],2))
 
 
 
@@ -153,15 +157,16 @@ def compute_bet_distances(dataset):
 		distance = 0
 		for _,k in bets.iterrows():
 			distance = distance + bet_distance(k,dataset)
-		normalized_scores.append(score)
-	return normalized_scores
+		distances.append(distance)
+	return distances
 
 def compute_unlucky_indeces(users):
-	if (not 'standard' in users.index) or ('distance' not in users.index):
+	if (not 'standardScore' in users.index) or ('distanceScore' not in users.index):
 		print('must first compute distances and standard scores')
 		return
 	indeces = []
 	for _,user in users.iterrows():
+		print(1000/(user['standardScore']*user['distanceScore']))
 		indeces.append(1000/(user['standardScore']*user['distanceScore']))
 	return indeces
 	

@@ -254,7 +254,8 @@ def compute_csv(cookie,company_,load_csv,compute_stats):
         r1 = pd.concat([dataset['userDataset'],s1,s2,s3], axis=1)
         unlucky = advanced_stats.compute_unlucky_indeces(r1)
         if unlucky:
-            r2 = pd.concat([r1,unlucky], axis=1)
+            s4 = pd.Series(unlucky, name='unluckyIndex')
+            r2 = pd.concat([r1,s4], axis=1)
             r2.to_csv('users.csv',encoding='utf-8', index=False)
         else:
             r1.to_csv('users.csv',encoding='utf-8', index=False)
