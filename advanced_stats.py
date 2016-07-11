@@ -96,21 +96,28 @@ def compute_standard_points(dataset):
 	userData = dataset['userDataset']
 	questionBetsData = dataset['questionBetsDataset']
 	standard_scores = []
+	numBetsList = []
 	for _,user in userData.iterrows():
 		bets = betData[betData['userID'] == user['userID']]
 		questionBets = questionBetsData[questionBetsData['userID'] == user['userID']]
 		score = 0
+		numbets = 0
 		for _,k in bets.iterrows():
-			if k['matchID'] >= 46:
+			numbets = numbets+1
+			if k['matchID'] >= 57:
+				values = [5,2]
+			elif k['matchID'] >= 46:
 				values = [4,2]
 			else:
 				values = [3,2]
 			score = score + (values[0] if guessed_winner(k,dataset) else 0) + (values[1] if guessed_score(k,dataset) else 0)
 		for _,j in questionBets.iterrows():
+			numbets = numbets+1
 			if j['answer'] == j['questionBet']:
 				score = score + (14 if j['questionID'] == 1 else 7)
 		standard_scores.append(score)
-	return standard_scores
+		numBetsList.append(numbets)
+	return standard_scores, numBetsList
 
 
 
@@ -129,7 +136,9 @@ def compute_normalized_points(dataset):
 			match = matchData[matchData['matchID'] == k['matchID']]
 			odds_score = match['odds_score'].iloc[0]
 			odds_winner = match['odds_winner'].iloc[0]
-			if k['matchID'] >= 46:
+			if k['matchID'] >= 57:
+				values = [5,2]
+			elif k['matchID'] >= 46:
 				values = [4,2]
 			else:
 				values = [3,2]
@@ -138,9 +147,9 @@ def compute_normalized_points(dataset):
 		for _,j in questionBets.iterrows():
 			question = questionData[questionData['questionID'] == j['questionID']]
 			if type(j['answer']) is str and question['odds_question'].iloc[0] > 0:
+				value = 14 if j['questionID'] == 1 else 7
 				if j['answer'] == j['questionBet']:
 					odds = question['odds_question'].iloc[0]
-					value = 14 if j['questionID'] == 1 else 7
 					score = score + value/odds
 				score = score - value
 
@@ -159,17 +168,6 @@ def compute_bet_distances(dataset):
 			distance = distance + bet_distance(k,dataset)
 		distances.append(distance)
 	return distances
-
-def compute_unlucky_indeces(users):
-	if (not 'standardScore' in users.index) or ('distanceScore' not in users.index):
-		print('must first compute distances and standard scores')
-		return
-	indeces = []
-	for _,user in users.iterrows():
-		print(1000/(user['standardScore']*user['distanceScore']))
-		indeces.append(1000/(user['standardScore']*user['distanceScore']))
-	return indeces
-	
 
 def get_user_summary(dataset,userID):
 	betData = dataset['betDataset']

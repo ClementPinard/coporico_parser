@@ -243,22 +243,17 @@ def compute_csv(cookie,company_,load_csv,compute_stats):
         dataset['matchDataset'] = pd.read_csv('matches.csv')
         dataset['questionDataset'] = pd.read_csv('questions.csv')
         
-        standard = advanced_stats.compute_standard_points(dataset)
+        standard,numbets = advanced_stats.compute_standard_points(dataset)
         normalized = advanced_stats.compute_normalized_points(dataset)
         distances = advanced_stats.compute_bet_distances(dataset)
         
-        s1 = pd.Series(standard, name='standardScore')
-        s2 = pd.Series(normalized, name='normalizedScore')
-        s3 = pd.Series(distances,name='distanceScore')
+        s1 = pd.Series(numbets, name='numBets')
+        s2 = pd.Series(standard, name='standardScore')
+        s3 = pd.Series(normalized, name='normalizedScore')
+        s4 = pd.Series(distances,name='distanceScore')
         
-        r1 = pd.concat([dataset['userDataset'],s1,s2,s3], axis=1)
-        unlucky = advanced_stats.compute_unlucky_indeces(r1)
-        if unlucky:
-            s4 = pd.Series(unlucky, name='unluckyIndex')
-            r2 = pd.concat([r1,s4], axis=1)
-            r2.to_csv('users.csv',encoding='utf-8', index=False)
-        else:
-            r1.to_csv('users.csv',encoding='utf-8', index=False)
+        r3 = pd.concat([dataset['userDataset'],s1,s2,s3,s4], axis=1)
+        r3.to_csv('users.csv',encoding='utf-8', index=False)
 
         dataset['userDataset'] = pd.read_csv('users.csv')
 
